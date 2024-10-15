@@ -30,7 +30,7 @@ set(CPACK_GENERATOR "RPM")
 set(CPACK_GENERATOR_diff_branch_pack "RPM")
 
 #установка информации в RPM
-set(CPACK_RPM_PACKAGE_GROUP "System Environment/Daemons")
+set(CPACK_RPM_PACKAGE_GROUP "Networking/Libraries")
 set(CPACK_RPM_PACKAGE_VENDOR ${CPACK_PACKAGE_VENDOR})
 set(CPACK_RPM_diff_branch_pack_PACKAGE_SUMMARY ${CPACK_COMPONENT_diff_branch_pack_DESCRIPTION})
 # Включение опции для создания релокатабельных RPM-пакетов
