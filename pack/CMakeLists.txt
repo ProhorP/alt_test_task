@@ -11,6 +11,12 @@ install(
     COMPONENT diff_branch_pack
 )
 
+install(
+    FILES ${CMAKE_SOURCE_DIR}/lib/diff_branch_pack.h
+    DESTINATION include
+    COMPONENT diff_branch_pack
+)
+
 # Определение компонентов и их содержимого (diff_branch_pack)
 set(COMPONENT_diff_branch_pack diff_branch_pack)
 
