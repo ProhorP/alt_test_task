@@ -1,3 +1,4 @@
+#include "common.h"
 #include "diff_branch_pack.h"
 
 int main(void)
