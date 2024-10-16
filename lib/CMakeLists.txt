@@ -3,7 +3,7 @@ add_library(diff_branch_pack SHARED
 )
 
 target_link_libraries(diff_branch_pack
-    # cjson
+    cjson
     libcurl_static
 )
 

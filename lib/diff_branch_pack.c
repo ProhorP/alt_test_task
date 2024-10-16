@@ -3,6 +3,17 @@
 
 #include <stdio.h>
 #include <curl/curl.h>
+#include "cJSON.h"
+
+int test_cjson(void)
+{
+    int ret = 0;
+    cJSON *json = cJSON_CreateObject();
+
+    cJSON_Delete(json);
+
+    return ret;
+}
 
 int test_curl(void)
 {
@@ -34,6 +45,7 @@ int diff_branch_pack(const char *branch1, const char *branch2)
     int ret = 0;
 
     test_curl();
+    test_cjson();
 
     printf("run: diff_branch_pack(%s,%s)\n", branch1, branch2);
 
