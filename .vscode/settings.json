@@ -1,0 +1,8 @@
+{
+    "cmake.buildArgs": [
+        // "--verbose"
+    ],
+    "files.associations": {
+        "curl.h": "c"
+    }
+}

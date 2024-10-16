@@ -38,7 +38,7 @@ set(CPACK_RPM_PACKAGE_RELOCATABLE ON)
 # Разрешение установки компонентов пакета
 set(CPACK_RPM_COMPONENT_INSTALL ON)
 # Зависимости для компонента (RPM)
-set(CPACK_RPM_diff_branch_pack_PACKAGE_REQUIRES "systemd")
+set(CPACK_RPM_diff_branch_pack_PACKAGE_REQUIRES "rpm2cpio, cpio")
 
 # Указание доступных компонентов для установки
 set(CPACK_COMPONENTS_ALL "diff_branch_pack")

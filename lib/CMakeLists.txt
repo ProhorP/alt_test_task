@@ -2,10 +2,10 @@ add_library(diff_branch_pack SHARED
     diff_branch_pack.c
 )
 
-# target_link_libraries(diff_branch_pack
-#     cjson
-#     curl
-# )
+target_link_libraries(diff_branch_pack
+    # cjson
+    libcurl_static
+)
 
 target_compile_options(diff_branch_pack PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
