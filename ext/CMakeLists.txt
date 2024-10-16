@@ -1,13 +1,12 @@
 set(EXTRACT_DIR "${CMAKE_BINARY_DIR}/ext")
 #curl################################################3
 
-set(CURL_EXTRACT_DIR "${EXTRACT_DIR}/curl-8.7.1")
-set(CURL_EXTRACT_DIR_BUILD "${EXTRACT_DIR}/curl_build")
+set(CURL_Version "8.7.1")
+set(CURL_EXTRACT_DIR "${EXTRACT_DIR}/curl-${CURL_Version}")
 if(NOT EXISTS "${CURL_EXTRACT_DIR}")
     execute_process(
-        COMMAND bash -c "wget https://git.altlinux.org/tasks/345770/build/100/x86_64/srpm/curl-8.7.1-alt2.src.rpm && rpm2cpio curl-8.7.1-alt2.src.rpm | cpio -id && tar -xf curl-8.7.1.tar"
+        COMMAND bash -c "wget https://git.altlinux.org/tasks/345770/build/100/x86_64/srpm/curl-${CURL_Version}-alt2.src.rpm && rpm2cpio curl-${CURL_Version}-alt2.src.rpm | cpio -id && tar -xf curl-${CURL_Version}.tar"
         WORKING_DIRECTORY ${EXTRACT_DIR}
-        # RESULT_VARIABLE FF_MS_RES
     )
 endif()
 
@@ -16,22 +15,22 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "Enable position-independent code (PIC) for static libraries" FORCE)
 
 # Теперь можно добавить подкаталог с исходниками curl
-add_subdirectory(${CURL_EXTRACT_DIR} ${CURL_EXTRACT_DIR_BUILD})
+# add_subdirectory(${CURL_EXTRACT_DIR} ${CURL_EXTRACT_DIR})
+add_subdirectory(${CURL_EXTRACT_DIR} ${CURL_EXTRACT_DIR})
 
 
 #cjson##################################
 
-set(cJSON_EXTRACT_DIR "${EXTRACT_DIR}/cjson-1.7.16")
-set(cJSON_EXTRACT_DIR_BUILD "${EXTRACT_DIR}")
+set(cJSON_Version "1.7.16")
+set(cJSON_EXTRACT_DIR "${EXTRACT_DIR}/cjson-${cJSON_Version}")
 if(NOT EXISTS "${cJSON_EXTRACT_DIR}")
     execute_process(
-        COMMAND bash -c "wget https://git.altlinux.org/tasks/345106/build/40/x86_64/srpm/cjson-1.7.16-alt0.1.src.rpm && rpm2cpio cjson-1.7.16-alt0.1.src.rpm | cpio -id && tar -xf cjson-1.7.16.tar"
+        COMMAND bash -c "wget https://git.altlinux.org/tasks/345106/build/40/x86_64/srpm/cjson-${cJSON_Version}-alt0.1.src.rpm && rpm2cpio cjson-${cJSON_Version}-alt0.1.src.rpm | cpio -id && tar -xf cjson-${cJSON_Version}.tar"
         WORKING_DIRECTORY ${EXTRACT_DIR}
-        # RESULT_VARIABLE FF_MS_RES
     )
 endif()
 
-add_library(cjson STATIC "${EXTRACT_DIR}/cjson-1.7.16/cJSON.c")
+add_library(cjson STATIC "${EXTRACT_DIR}/cjson-${cJSON_Version}/cJSON.c")
 
 target_include_directories(cjson
         PUBLIC
