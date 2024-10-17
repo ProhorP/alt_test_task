@@ -240,12 +240,7 @@ end:
 
 void uthash_destroy(struct uthash_data_t *uthash_data)
 {
-    struct uthash_entry_t *s, *tmp = NULL;
-    /* free the hash table contents */
-    HASH_ITER(hh, uthash_data->users, s, tmp)
-    {
-        HASH_DEL(uthash_data->users, s);
-    }
+    HASH_CLEAR(hh, uthash_data->users);
     OS_FREE(uthash_data->buf);
 }
 
