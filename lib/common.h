@@ -24,3 +24,13 @@
 		ret = EXIT_FAILURE;            \
 		goto end;                      \
 	} while (0)
+
+#define OS_FREE(x)    \
+	do                \
+	{                 \
+		if (x)        \
+		{             \
+			free(x);  \
+			x = NULL; \
+		}             \
+	} while (0)
