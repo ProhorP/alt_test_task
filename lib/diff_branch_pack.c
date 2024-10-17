@@ -281,44 +281,38 @@ static void *thread_func(void *arg)
 
     struct thread_data_t *td = arg;
 
-    {
-        // скачиваем json
-        if (get_json_list(&td->json_data, "https://example.com") < 0)
-            ERR_EXIT("get_json_list");
+    // скачиваем json
+    if (get_json_list(&td->json_data, "https://example.com") < 0)
+        ERR_EXIT("get_json_list");
 
-        // заглушка для проверки кода
-        OS_FREE(td->json_data.json_str);
+    // заглушка для проверки кода
+    OS_FREE(td->json_data.json_str);
 
-        if (td->index == 0)
-            td->json_data.json_str = strdup(str1);
-        else
-            td->json_data.json_str = strdup(str2);
+    if (td->index == 0)
+        td->json_data.json_str = strdup(str1);
+    else
+        td->json_data.json_str = strdup(str2);
 
-        // парсим его
-        td->json_data.json = cJSON_Parse(td->json_data.json_str);
-        if (!td->json_data.json)
-            ERR_EXIT("invalid json: %s", td->json_data.json_str);
+    // парсим его
+    td->json_data.json = cJSON_Parse(td->json_data.json_str);
+    if (!td->json_data.json)
+        ERR_EXIT("invalid json: %s", td->json_data.json_str);
 
-        // переносим элементы json в хэш-таблицу для быстрого ставнения
-        if (fill_hash_table(&td->uthash_data, td->json_data.json) < 0)
-            ERR_EXIT("fill_hash_table");
-    }
+    // переносим элементы json в хэш-таблицу для быстрого сравнения
+    if (fill_hash_table(&td->uthash_data, td->json_data.json) < 0)
+        ERR_EXIT("fill_hash_table");
 
-    // ждем соседний поток
-    // Ожидание всех потоков на барьере
     pthread_barrier_wait(&barrier);
 
+    // Проверка на то что пакет есть только в текущей ветке
+    struct uthash_entry_t *s1, *tmp = NULL;
+    HASH_ITER(hh, td->uthash_data.users, s1, tmp)
     {
-        // Проверка на то что пакет есть только в текущей ветке
-        struct uthash_entry_t *s1, *tmp = NULL;
-        HASH_ITER(hh, td->uthash_data.users, s1, tmp)
-        {
-            struct uthash_entry_t *s2 = NULL;
-            HASH_FIND_STR(td->uthash_data.other->users, s1->name, s2);
-            if (!s2)
-                if (!cJSON_AddItemReferenceToArray(td->uthash_data.array, s1->obj))
-                    ERR_EXIT("cJSON_AddItemToArray");
-        }
+        struct uthash_entry_t *s2 = NULL;
+        HASH_FIND_STR(td->uthash_data.other->users, s1->name, s2);
+        if (!s2)
+            if (!cJSON_AddItemReferenceToArray(td->uthash_data.array, s1->obj))
+                ERR_EXIT("cJSON_AddItemToArray");
     }
 
 end:
