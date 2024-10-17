@@ -43,35 +43,9 @@ struct uthash_data_t
     struct uthash_entry_t *users;
     char *buf;
     size_t buf_size;
-    size_t max_key_size;
     struct uthash_data_t *other;
+    cJSON *array;
 };
-
-int test_uthash(void)
-{
-    const char *names[] = {"joe", "bob", "betty", NULL};
-    struct uthash_entry_t *s, *tmp, *users = NULL;
-
-    for (int i = 0; names[i]; ++i)
-    {
-        s = (struct uthash_entry_t *)malloc(sizeof *s + strlen(names[i]) + 1);
-        strcpy(s->name, names[i]);
-        // s->id = i;
-        HASH_ADD_STR(users, name, s);
-    }
-
-    HASH_FIND_STR(users, "betty", s);
-    if (s)
-        printf("betty's id is %s\n", s->release);
-
-    /* free the hash table contents */
-    HASH_ITER(hh, users, s, tmp)
-    {
-        HASH_DEL(users, s);
-        free(s);
-    }
-    return 0;
-}
 
 struct json_data_t
 {
@@ -145,6 +119,8 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
 {
     int ret = 0;
     cJSON *tmp = NULL;
+    char *buf_version = NULL;
+    size_t max_version_size = 0;
 
     cJSON *packages = cJSON_GetObjectItemCaseSensitive(json, "packages");
     if (!(packages && cJSON_IsArray(packages)))
@@ -167,6 +143,13 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
         if (!name)
             ERR_EXIT("is NULL json.packages[i].name");
 
+        // json.packages[i].version
+        if (!(tmp = cJSON_GetObjectItemCaseSensitive(package, "version")))
+            ERR_EXIT("not found json.packages[i].version");
+        char *version = cJSON_GetStringValue(tmp);
+        if (!version)
+            ERR_EXIT("is NULL json.packages[i].version");
+
         // json.packages[i].arch
         if (!(tmp = cJSON_GetObjectItemCaseSensitive(package, "arch")))
             ERR_EXIT("not found json.packages[i].arch");
@@ -175,12 +158,17 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
             ERR_EXIT("is NULL json.packages[i].arch");
 
         size_t cur_key_size = strlen(name) + strlen(arch) + 1;
-        data->max_key_size = (cur_key_size > data->max_key_size) ? cur_key_size : data->max_key_size;
+        size_t cur_version_size = strlen(version) + 1;
+        max_version_size = (cur_version_size > max_version_size) ? cur_version_size : max_version_size;
         data->buf_size += sizeof(struct uthash_entry_t) + cur_key_size;
     }
 
     data->buf = malloc(data->buf_size);
     if (!data->buf)
+        ERR_EXIT("malloc");
+
+    buf_version = malloc(max_version_size);
+    if (!buf_version)
         ERR_EXIT("malloc");
 
     char *ptr = data->buf;
@@ -225,7 +213,9 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
         s->obj = package;
         s->release = release;
 
-        char *token = strtok(version, ".");
+        // версию поместим в массив для быстрого сравнения
+        strcpy(buf_version, version);
+        char *token = strtok(buf_version, ".");
 
         for (size_t i = 0; token != NULL; i++)
         {
@@ -243,6 +233,8 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
     }
 
 end:
+    OS_FREE(buf_version);
+
     return ret;
 }
 
@@ -283,6 +275,15 @@ int diff_branch_pack(const char *branch1, const char *branch2)
     struct uthash_data_t uthash_data[2] = {0};
     uthash_data[0].other = &uthash_data[1];
     uthash_data[1].other = &uthash_data[0];
+    cJSON *arr_list1_greater_version = NULL;
+    cJSON *json_out = NULL;
+    char *json_out_str = NULL;
+
+    for (size_t i = 0; i < 2; i++)
+        if (!(uthash_data[i].array = cJSON_CreateArray()))
+            ERR_EXIT("cJSON_CreateArray");
+    if (!(arr_list1_greater_version = cJSON_CreateArray()))
+        ERR_EXIT("cJSON_CreateArray");
 
     for (size_t i = 0; i < 2; i++)
     {
@@ -313,7 +314,11 @@ int diff_branch_pack(const char *branch1, const char *branch2)
         {
             HASH_FIND_STR(uthash_data[i].other->users, s1->name, s2);
             if (!s2)
+            {
+                if (!cJSON_AddItemReferenceToArray(uthash_data[i].array, s1->obj))
+                    ERR_EXIT("cJSON_AddItemToArray");
                 printf("in json%ld unique %s\n", i, s1->name);
+            }
             s2 = NULL;
         }
     }
@@ -326,11 +331,31 @@ int diff_branch_pack(const char *branch1, const char *branch2)
             HASH_FIND_STR(uthash_data[0].other->users, s1->name, s2);
             if (s2)
                 if (greater_version(s1, s2))
-                    printf("in %s version greater %s\n", s1->name, s2->name);
+                    if (!cJSON_AddItemReferenceToArray(arr_list1_greater_version, s1->obj))
+                        ERR_EXIT("cJSON_AddItemToArray");
             s2 = NULL;
         }
     }
 
+    if (!(json_out = cJSON_CreateObject()))
+        ERR_EXIT("cJSON_CreateObject()");
+
+    if (!cJSON_AddItemToObject(json_out, "only1", uthash_data[0].array))
+        ERR_EXIT("cJSON_AddItemToObject");
+    uthash_data[0].array = NULL;
+
+    if (!cJSON_AddItemToObject(json_out, "only2", uthash_data[1].array))
+        ERR_EXIT("cJSON_AddItemToObject");
+    uthash_data[1].array = NULL;
+
+    if (!cJSON_AddItemToObject(json_out, "version1great", arr_list1_greater_version))
+        ERR_EXIT("cJSON_AddItemToObject");
+    arr_list1_greater_version = NULL;
+
+    if (!(json_out_str = cJSON_Print(json_out)))
+        ERR_EXIT("cJSON_Print");
+
+    printf("%s\n", json_out_str);
     printf("run: diff_branch_pack(%s,%s)\n", branch1, branch2);
 
 end:
@@ -339,5 +364,8 @@ end:
         uthash_destroy(&uthash_data[i]);
         json_data_destroe(&json_data[i]);
     }
+    OS_JSON_FREE(json_out);
+    OS_FREE(json_out_str);
+
     return ret;
 }
