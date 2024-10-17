@@ -282,6 +282,7 @@ int diff_branch_pack(const char *branch1, const char *branch2)
 
     for (size_t i = 0; i < 2; i++)
     {
+        //скачиваем json
         if (get_json_list(&json_data[i], "https://example.com") < 0)
             ERR_EXIT("get_json_list");
 
@@ -293,45 +294,46 @@ int diff_branch_pack(const char *branch1, const char *branch2)
         else
             json_data[i].json_str = strdup(str2);
 
+        //парсим его
         json_data[i].json = cJSON_Parse(json_data[i].json_str);
         if (!json_data[i].json)
             ERR_EXIT("invalid json: %s", json_data[i].json_str);
 
+        //переносим элементы json в хэш-таблицу для быстрого ставнения
         if (fill_hash_table(&uthash_data[i], json_data[i].json) < 0)
             ERR_EXIT("fill_hash_table");
     }
 
     for (size_t i = 0; i < 2; i++)
     {
-        struct uthash_entry_t *s1, *s2, *tmp = NULL;
-        /* free the hash table contents */
+        //Проверка на то что пакет есть только в текущей ветке
+        struct uthash_entry_t *s1, *tmp = NULL;
         HASH_ITER(hh, uthash_data[i].users, s1, tmp)
         {
+            struct uthash_entry_t *s2 = NULL;
             HASH_FIND_STR(uthash_data[i].other->users, s1->name, s2);
             if (!s2)
-            {
                 if (!cJSON_AddItemReferenceToArray(uthash_data[i].array, s1->obj))
                     ERR_EXIT("cJSON_AddItemToArray");
-                printf("in json%ld unique %s\n", i, s1->name);
-            }
-            s2 = NULL;
         }
     }
 
     {
-        struct uthash_entry_t *s1, *s2, *tmp = NULL;
-        /* free the hash table contents */
+        //проверка что пакет в ветке 1 больше чем в ветке 2
+        struct uthash_entry_t *s1, *tmp = NULL;
         HASH_ITER(hh, uthash_data[0].users, s1, tmp)
         {
+            struct uthash_entry_t *s2 = NULL;
             HASH_FIND_STR(uthash_data[0].other->users, s1->name, s2);
             if (s2)
                 if (greater_version(s1, s2))
                     if (!cJSON_AddItemReferenceToArray(arr_list1_greater_version, s1->obj))
                         ERR_EXIT("cJSON_AddItemToArray");
-            s2 = NULL;
         }
     }
 
+    //создание json объекта для печати
+    //я переиспользую ранее пропасенные элементы для оптимизации
     if (!(json_out = cJSON_CreateObject()))
         ERR_EXIT("cJSON_CreateObject()");
 
