@@ -4,6 +4,41 @@
 #include <stdio.h>
 #include <curl/curl.h>
 #include "cJSON.h"
+#include "uthash.h"
+
+struct uthash_entry
+{
+    int id;
+    cJSON *obj;
+    UT_hash_handle hh; /* makes this structure hashable */
+    char name[]; /* key (string is WITHIN the structure) */
+};
+
+int test_uthash(void)
+{
+    const char *names[] = {"joe", "bob", "betty", NULL};
+    struct uthash_entry *s, *tmp, *users = NULL;
+
+    for (int i = 0; names[i]; ++i)
+    {
+        s = (struct uthash_entry *)malloc(sizeof *s + strlen(names[i]) + 1);
+        strcpy(s->name, names[i]);
+        s->id = i;
+        HASH_ADD_STR(users, name, s);
+    }
+
+    HASH_FIND_STR(users, "betty", s);
+    if (s)
+        printf("betty's id is %d\n", s->id);
+
+    /* free the hash table contents */
+    HASH_ITER(hh, users, s, tmp)
+    {
+        HASH_DEL(users, s);
+        free(s);
+    }
+    return 0;
+}
 
 int test_cjson(void)
 {
@@ -46,6 +81,7 @@ int diff_branch_pack(const char *branch1, const char *branch2)
 
     test_curl();
     test_cjson();
+    test_uthash();
 
     printf("run: diff_branch_pack(%s,%s)\n", branch1, branch2);
 

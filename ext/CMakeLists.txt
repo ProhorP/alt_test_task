@@ -19,6 +19,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "Enable position-independent c
 add_subdirectory(${CURL_EXTRACT_DIR} ${CURL_EXTRACT_DIR})
 
 
+
 #cjson##################################
 
 set(cJSON_Version "1.7.16")
@@ -33,6 +34,25 @@ endif()
 add_library(cjson STATIC "${EXTRACT_DIR}/cjson-${cJSON_Version}/cJSON.c")
 
 target_include_directories(cjson
-        PUBLIC
-        ${cJSON_EXTRACT_DIR}
+    PUBLIC
+    ${cJSON_EXTRACT_DIR}
+)
+
+
+#uthash##################################
+
+set(uthash_Version "2.3.0")
+set(uthash_EXTRACT_DIR "${EXTRACT_DIR}/libuthash-devel-${uthash_Version}/src")
+if(NOT EXISTS "${uthash_EXTRACT_DIR}")
+    execute_process(
+        COMMAND bash -c "wget https://git.altlinux.org/tasks/273064/build/100/x86_64/srpm/libuthash-devel-${uthash_Version}-alt1.src.rpm && rpm2cpio libuthash-devel-${uthash_Version}-alt1.src.rpm | cpio -id && tar -xf libuthash-devel-${uthash_Version}.tar"
+        WORKING_DIRECTORY ${EXTRACT_DIR}
+    )
+endif()
+
+add_library(uthash INTERFACE)
+
+target_include_directories(uthash
+    INTERFACE
+    ${uthash_EXTRACT_DIR}
 )
