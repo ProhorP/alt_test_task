@@ -34,3 +34,12 @@
 			x = NULL; \
 		}             \
 	} while (0)
+
+#define OS_JSON_FREE(x)      \
+	do {                     \
+		if (x)               \
+		{                    \
+			cJSON_Delete(x); \
+			x = NULL;        \
+		}                    \
+	} while (0)

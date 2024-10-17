@@ -6,30 +6,50 @@
 #include "cJSON.h"
 #include "uthash.h"
 
-struct uthash_entry
+const char str1[] = "{\n"
+                    "\"request_args\": {\"arch\": null}, \"length\": 187619, \"packages\":\n"
+                    "[\n"
+                    "{\"name\": \"a1\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"aarch64\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
+                    ",\n"
+                    "{\"name\": \"a1\", \"epoch\": 1, \"version\": \"0.0.2\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"i586\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
+                    ",\n"
+                    "{\"name\": \"a2\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"i586\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
+                    "]\n"
+                    "}";
+
+struct uthash_entry_t
 {
-    int id;
+    const char *version;
+    const char *release;
     cJSON *obj;
     UT_hash_handle hh; /* makes this structure hashable */
-    char name[];       /* key (string is WITHIN the structure) */
+    char name[];       /* key (name+arch) */
+};
+
+struct uthash_data_t
+{
+    struct uthash_entry_t *users;
+    char *buf;
+    size_t buf_size;
+    size_t max_key_size;
 };
 
 int test_uthash(void)
 {
     const char *names[] = {"joe", "bob", "betty", NULL};
-    struct uthash_entry *s, *tmp, *users = NULL;
+    struct uthash_entry_t *s, *tmp, *users = NULL;
 
     for (int i = 0; names[i]; ++i)
     {
-        s = (struct uthash_entry *)malloc(sizeof *s + strlen(names[i]) + 1);
+        s = (struct uthash_entry_t *)malloc(sizeof *s + strlen(names[i]) + 1);
         strcpy(s->name, names[i]);
-        s->id = i;
+        // s->id = i;
         HASH_ADD_STR(users, name, s);
     }
 
     HASH_FIND_STR(users, "betty", s);
     if (s)
-        printf("betty's id is %d\n", s->id);
+        printf("betty's id is %s\n", s->release);
 
     /* free the hash table contents */
     HASH_ITER(hh, users, s, tmp)
@@ -38,16 +58,6 @@ int test_uthash(void)
         free(s);
     }
     return 0;
-}
-
-int test_cjson(void)
-{
-    int ret = 0;
-    cJSON *json = cJSON_CreateObject();
-
-    cJSON_Delete(json);
-
-    return ret;
 }
 
 struct memory
@@ -117,23 +127,130 @@ end:
     return ret;
 }
 
+int fill_hash_table(struct uthash_data_t *data, cJSON *json)
+{
+    int ret = 0;
+    struct uthash_entry_t *s, *tmp = NULL;
+    cJSON *tmp_json = NULL;
+
+    cJSON *packages = cJSON_GetObjectItemCaseSensitive(json, "packages");
+    if (!(packages && cJSON_IsArray(packages)))
+        ERR_EXIT("not found json.packages(array)");
+
+    size_t size = cJSON_GetArraySize(packages);
+
+    for (size_t i = 0; i < size; i++)
+    {
+        cJSON *package = cJSON_GetArrayItem(packages, i);
+
+        // json.packages[i].name
+        if (!(tmp_json = cJSON_GetObjectItemCaseSensitive(package, "name")))
+            ERR_EXIT("not found json.packages[i].name");
+        const char *name = cJSON_GetStringValue(tmp_json);
+        if (!name)
+            ERR_EXIT("is NULL json.packages[i].name");
+
+        // json.packages[i].arch
+        if (!(tmp_json = cJSON_GetObjectItemCaseSensitive(package, "arch")))
+            ERR_EXIT("not found json.packages[i].arch");
+        const char *arch = cJSON_GetStringValue(tmp_json);
+        if (!arch)
+            ERR_EXIT("is NULL json.packages[i].arch");
+
+        size_t cur_key_size = strlen(name) + strlen(arch) + 1;
+        data->max_key_size = (cur_key_size > data->max_key_size) ? cur_key_size : data->max_key_size;
+        data->buf_size += sizeof(struct uthash_entry_t) + cur_key_size;
+    }
+
+    data->buf = malloc(data->buf_size);
+    if (!data->buf)
+        ERR_EXIT("malloc");
+
+    char *ptr = data->buf;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        cJSON *package = cJSON_GetArrayItem(packages, i);
+
+        // json.packages[i].name
+        if (!(tmp_json = cJSON_GetObjectItemCaseSensitive(package, "name")))
+            ERR_EXIT("not found json.packages[i].name");
+        const char *name = cJSON_GetStringValue(tmp_json);
+        if (!name)
+            ERR_EXIT("is NULL json.packages[i].name");
+
+        // json.packages[i].version
+        if (!(tmp_json = cJSON_GetObjectItemCaseSensitive(package, "version")))
+            ERR_EXIT("not found json.packages[i].version");
+        const char *version = cJSON_GetStringValue(tmp_json);
+        if (!version)
+            ERR_EXIT("is NULL json.packages[i].version");
+
+        // json.packages[i].release
+        if (!(tmp_json = cJSON_GetObjectItemCaseSensitive(package, "release")))
+            ERR_EXIT("not found json.packages[i].release");
+        const char *release = cJSON_GetStringValue(tmp_json);
+        if (!release)
+            ERR_EXIT("is NULL json.packages[i].arch");
+
+        // json.packages[i].arch
+        if (!(tmp_json = cJSON_GetObjectItemCaseSensitive(package, "arch")))
+            ERR_EXIT("not found json.packages[i].arch");
+        const char *arch = cJSON_GetStringValue(tmp_json);
+        if (!arch)
+            ERR_EXIT("is NULL json.packages[i].arch");
+
+        size_t cur_key_size = strlen(name) + strlen(arch) + 1;
+        struct uthash_entry_t *s = (struct uthash_entry_t *)ptr;
+        strcpy(s->name, name);
+        strcat(s->name, arch);
+        s->release = release;
+        s->version = version;
+        HASH_ADD_STR(data->users, name, s);
+        ptr += sizeof(*s) + cur_key_size;
+    }
+
+    HASH_FIND_STR(data->users, "a1aarch64", s);
+    if (s)
+        printf("a1aarch64 release is %s\n", s->release);
+
+    /* free the hash table contents */
+    HASH_ITER(hh, data->users, s, tmp)
+    {
+        HASH_DEL(data->users, s);
+    }
+end:
+    return ret;
+}
+
 int diff_branch_pack(const char *branch1, const char *branch2)
 {
     int ret = 0;
 
     struct memory json_data = {0};
+    cJSON *json = NULL;
+    struct uthash_data_t uthash_data = {0};
 
     if (get_json_list(&json_data, "https://example.com") < 0)
         ERR_EXIT("get_json_list");
 
-    printf("%s", json_data.json_str);
-    test_cjson();
-    test_uthash();
+    // заглушка для проверки кода
+    OS_FREE(json_data.json_str);
+    json_data.json_str = strdup(str1);
+
+    json = cJSON_Parse(json_data.json_str);
+    if (!json)
+        ERR_EXIT("invalid json: %s", json_data.json_str);
+
+    if (fill_hash_table(&uthash_data, json) < 0)
+        ERR_EXIT("fill_hash_table");
 
     printf("run: diff_branch_pack(%s,%s)\n", branch1, branch2);
 
 end:
+    OS_FREE(uthash_data.buf);
     OS_FREE(json_data.json_str);
+    OS_JSON_FREE(json);
 
     return ret;
 }

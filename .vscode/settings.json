@@ -3,6 +3,7 @@
         // "--verbose"
     ],
     "files.associations": {
-        "curl.h": "c"
+        "curl.h": "c",
+        "typeinfo": "c"
     }
 }
