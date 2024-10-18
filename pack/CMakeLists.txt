@@ -40,6 +40,7 @@ set(CPACK_RPM_COMPONENT_INSTALL ON)
 # Зависимости для компонента (RPM)
 # set(CPACK_RPM_alt_PACKAGE_REQUIRES "systemd")
 set(CPACK_RPM_DEBUGINFO_PACKAGE OFF)
+set(CPACK_RPM_alt_DEBUGINFO_PACKAGE OFF)
 
 # Указание доступных компонентов для установки
 set(CPACK_COMPONENTS_ALL "alt")
