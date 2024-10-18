@@ -181,7 +181,7 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
             char *endptr = NULL;
             s->version[i] = strtol(token, &endptr, 10);
             if (*endptr != '\0')
-                goto end;
+                break;
             token = strtok(NULL, ".");
         }
 
