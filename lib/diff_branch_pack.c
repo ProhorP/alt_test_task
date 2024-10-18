@@ -176,7 +176,7 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
 
         for (size_t i = 0; token != NULL; i++)
         {
-            if (i > sizeof(s->version) / sizeof(s->version[0]))
+            if (i == sizeof(s->version) / sizeof(s->version[0]))
                 ERR_EXIT("version very long");
             char *endptr = NULL;
             s->version[i] = strtol(token, &endptr, 10);
