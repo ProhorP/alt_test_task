@@ -1,9 +1,8 @@
 #include "common.h"
 #include "diff_branch_pack.h"
 
-#include <pthread.h>
-
 pthread_barrier_t barrier; // Барьер
+pthread_mutex_t mutex_log = PTHREAD_MUTEX_INITIALIZER;
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -90,9 +89,9 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
 
     /* Пройдем массив, посмотрим сколько нужно памяти чтобы сделать 1 malloc
      *  Получим размер максимальной длины ключа*/
-    for (size_t i = 0; i < size; i++)
+    cJSON *package = NULL;
+    cJSON_ArrayForEach(package, packages)
     {
-        cJSON *package = cJSON_GetArrayItem(packages, i);
 
         // json.packages[i].name
         if (!(tmp = cJSON_GetObjectItemCaseSensitive(package, "name")))
@@ -131,9 +130,9 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
 
     char *ptr = data->buf;
 
-    for (size_t i = 0; i < size; i++)
+    package = NULL;
+    cJSON_ArrayForEach(package, packages)
     {
-        cJSON *package = cJSON_GetArrayItem(packages, i);
 
         // json.packages[i].name
         if (!(tmp = cJSON_GetObjectItemCaseSensitive(package, "name")))
@@ -182,7 +181,7 @@ int fill_hash_table(struct uthash_data_t *data, cJSON *json)
             char *endptr = NULL;
             s->version[i] = strtol(token, &endptr, 10);
             if (*endptr != '\0')
-                ERR_EXIT("strtol");
+                goto end;
             token = strtok(NULL, ".");
         }
 
@@ -402,8 +401,14 @@ int diff_branch_pack(const char *branch1, const char *branch2)
         if (pthread_join(td[i].tid, (void **)&result) != 0)
             ERR_EXIT("Ошибка при ожидании завершения потока");
         if (*result < 0)
-            ERR_EXIT("Realtime: поток завершился с ошибкой");
+        {
+            printf("Realtime: поток завершился с ошибкой\n");
+            ret = *result;
+        }
     }
+
+    if (ret < 0)
+        goto end;
 
     if (fill_pack_greater(&td[0].uthash_data) < 0)
         ERR_EXIT("fill_pack_greater");
