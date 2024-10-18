@@ -78,6 +78,7 @@ struct json_data_t
     char *json_str;
     cJSON *json;
     size_t size_str;
+	size_t capacity;
 };
 
 struct thread_data_t

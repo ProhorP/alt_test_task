@@ -9,17 +9,22 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 {
     size_t realsize = size * nmemb;
     struct json_data_t *mem = (struct json_data_t *)userp;
+    size_t new_size = mem->size_str + realsize + 1;
 
-    // Расширяем буфер для нового ответа
-    char *ptr = realloc(mem->json_str, mem->size_str + realsize + 1);
-    if (ptr == NULL)
+    if (mem->capacity < new_size)
     {
-        // Не хватает памяти
-        printf("Not enough memory to allocate buffer\n");
-        return 0;
+        // Расширяем буфер для нового ответа
+        mem->capacity = new_size * 2;
+        char *ptr = realloc(mem->json_str, mem->capacity);
+        if (ptr == NULL)
+        {
+            // Не хватает памяти
+            printf("Not enough memory to allocate buffer\n");
+            return 0;
+        }
+        mem->json_str = ptr;
     }
 
-    mem->json_str = ptr;
     // Копируем данные в наш буфер
     memcpy(&(mem->json_str[mem->size_str]), contents, realsize);
     mem->size_str += realsize;
