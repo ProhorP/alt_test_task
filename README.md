@@ -21,5 +21,5 @@ sudo rpm -i diff_branch_pack-1.0.0-Linux-alt.rpm
 ```
 # remove
 ```
-sudo rpm -e diff_branch_pack
+sudo rpm -e diff_branch_pack-alt
 ```
