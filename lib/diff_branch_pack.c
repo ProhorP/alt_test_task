@@ -49,6 +49,7 @@ struct uthash_data_t
     size_t buf_size;
     struct uthash_data_t *other;
     cJSON *array;
+    cJSON *arr_greater_version;
 };
 
 struct json_data_t
@@ -91,6 +92,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 
 int get_json_list(struct json_data_t *json_data, const char *url)
 {
+    // скачиваем json
     int ret = 0;
 
     CURL *curl;
@@ -129,6 +131,7 @@ end:
 
 int fill_hash_table(struct uthash_data_t *data, cJSON *json)
 {
+    // переносим элементы json в хэш-таблицу для быстрого сравнения
     int ret = 0;
     cJSON *tmp = NULL;
     char *buf_version = NULL;
@@ -254,6 +257,8 @@ void uthash_destroy(struct uthash_data_t *uthash_data)
 {
     HASH_CLEAR(hh, uthash_data->users);
     OS_FREE(uthash_data->buf);
+    OS_JSON_FREE(uthash_data->array);
+    OS_JSON_FREE(uthash_data->arr_greater_version);
 }
 
 void json_data_destroe(struct json_data_t *json_data)
@@ -274,6 +279,43 @@ bool greater_version(struct uthash_entry_t *lhs, struct uthash_entry_t *rhs)
     return false;
 }
 
+int fill_pack_only_cur(struct uthash_data_t *uthash_data)
+{
+    int ret = 0;
+    // Проверка на то что пакет есть только в текущей ветке
+    struct uthash_entry_t *s1, *tmp = NULL;
+    HASH_ITER(hh, uthash_data->users, s1, tmp)
+    {
+        struct uthash_entry_t *s2 = NULL;
+        HASH_FIND_STR(uthash_data->other->users, s1->name, s2);
+        if (!s2)
+            if (!cJSON_AddItemReferenceToArray(uthash_data->array, s1->obj))
+                ERR_EXIT("cJSON_AddItemToArray");
+    }
+end:
+    return ret;
+}
+
+int fill_pack_greater(struct uthash_data_t *uthash_data)
+{
+    int ret = 0;
+
+    // проверка что пакет в ветке 1 больше чем в ветке 2
+    struct uthash_entry_t *s1, *tmp = NULL;
+    HASH_ITER(hh, uthash_data->users, s1, tmp)
+    {
+        struct uthash_entry_t *s2 = NULL;
+        HASH_FIND_STR(uthash_data->other->users, s1->name, s2);
+        if (s2)
+            if (greater_version(s1, s2))
+                if (!cJSON_AddItemReferenceToArray(uthash_data->arr_greater_version, s1->obj))
+                    ERR_EXIT("cJSON_AddItemToArray");
+    }
+
+end:
+    return ret;
+}
+
 static void *thread_func(void *arg)
 {
     static int ret = 0;
@@ -281,7 +323,6 @@ static void *thread_func(void *arg)
 
     struct thread_data_t *td = arg;
 
-    // скачиваем json
     if (get_json_list(&td->json_data, "https://example.com") < 0)
         ERR_EXIT("get_json_list");
 
@@ -298,48 +339,94 @@ static void *thread_func(void *arg)
     if (!td->json_data.json)
         ERR_EXIT("invalid json: %s", td->json_data.json_str);
 
-    // переносим элементы json в хэш-таблицу для быстрого сравнения
     if (fill_hash_table(&td->uthash_data, td->json_data.json) < 0)
         ERR_EXIT("fill_hash_table");
 
     pthread_barrier_wait(&barrier);
 
-    // Проверка на то что пакет есть только в текущей ветке
-    struct uthash_entry_t *s1, *tmp = NULL;
-    HASH_ITER(hh, td->uthash_data.users, s1, tmp)
-    {
-        struct uthash_entry_t *s2 = NULL;
-        HASH_FIND_STR(td->uthash_data.other->users, s1->name, s2);
-        if (!s2)
-            if (!cJSON_AddItemReferenceToArray(td->uthash_data.array, s1->obj))
-                ERR_EXIT("cJSON_AddItemToArray");
-    }
+    if (fill_pack_only_cur(&td->uthash_data) < 0)
+        ERR_EXIT("fill_pack_only_cur");
 
 end:
 
     pthread_exit(&ret);
 }
 
-int diff_branch_pack(const char *branch1, const char *branch2)
+int print_json(struct uthash_data_t *uthash_data1, struct uthash_data_t *uthash_data2)
+{
+    int ret = 0;
+    cJSON *json_out = NULL;
+    char *json_out_str = NULL;
+
+    // создание json объекта для печати
+    // я переиспользую ранее пропасенные элементы для оптимизации
+    if (!(json_out = cJSON_CreateObject()))
+        ERR_EXIT("cJSON_CreateObject()");
+
+    if (!cJSON_AddItemToObject(json_out, "only1", uthash_data1->array))
+        ERR_EXIT("cJSON_AddItemToObject");
+    uthash_data1->array = NULL;
+
+    if (!cJSON_AddItemToObject(json_out, "only2", uthash_data2->array))
+        ERR_EXIT("cJSON_AddItemToObject");
+    uthash_data2->array = NULL;
+
+    if (!cJSON_AddItemToObject(json_out, "version1great", uthash_data1->arr_greater_version))
+        ERR_EXIT("cJSON_AddItemToObject");
+    uthash_data1->arr_greater_version = NULL;
+
+    if (!(json_out_str = cJSON_Print(json_out)))
+        ERR_EXIT("cJSON_Print");
+
+    printf("%s\n", json_out_str);
+
+end:
+    OS_JSON_FREE(json_out);
+    OS_FREE(json_out_str);
+
+    return ret;
+}
+
+int thread_data_init(struct thread_data_t td[NUM_THREADS])
 {
     int ret = 0;
 
-    struct thread_data_t td[NUM_THREADS] = {0};
+    memset(td, 0, sizeof(*td) * NUM_THREADS);
+
     td[0].uthash_data.other = &td[1].uthash_data;
     td[1].uthash_data.other = &td[0].uthash_data;
     td[0].index = 0;
     td[1].index = 1;
-    cJSON *arr_list1_greater_version = NULL;
-    cJSON *json_out = NULL;
-    char *json_out_str = NULL;
 
     // подготовим массивы json для заполнения в потоках
     for (size_t i = 0; i < NUM_THREADS; i++)
+    {
         if (!(td[i].uthash_data.array = cJSON_CreateArray()))
             ERR_EXIT("cJSON_CreateArray");
-    // это 3-й массив для сравнения версий и только для 1 ветки
-    if (!(arr_list1_greater_version = cJSON_CreateArray()))
-        ERR_EXIT("cJSON_CreateArray");
+        if (!(td[i].uthash_data.arr_greater_version = cJSON_CreateArray()))
+            ERR_EXIT("cJSON_CreateArray");
+    }
+
+end:
+    return ret;
+}
+
+void thread_data_destroy(struct thread_data_t td[NUM_THREADS])
+{
+    for (size_t i = 0; i < NUM_THREADS; i++)
+    {
+        uthash_destroy(&td[i].uthash_data);
+        json_data_destroe(&td[i].json_data);
+    }
+}
+
+int diff_branch_pack(const char *branch1, const char *branch2)
+{
+    int ret = 0;
+    struct thread_data_t td[NUM_THREADS];
+
+    if (thread_data_init(td) < 0)
+        ERR_EXIT("thread_data_init");
 
     if (pthread_barrier_init(&barrier, NULL, NUM_THREADS))
         ERR_EXIT("pthread_barrier_init");
@@ -357,49 +444,16 @@ int diff_branch_pack(const char *branch1, const char *branch2)
             ERR_EXIT("Realtime: поток завершился с ошибкой");
     }
 
-    // проверка что пакет в ветке 1 больше чем в ветке 2
-    struct uthash_entry_t *s1, *tmp = NULL;
-    HASH_ITER(hh, td[0].uthash_data.users, s1, tmp)
-    {
-        struct uthash_entry_t *s2 = NULL;
-        HASH_FIND_STR(td[0].uthash_data.other->users, s1->name, s2);
-        if (s2)
-            if (greater_version(s1, s2))
-                if (!cJSON_AddItemReferenceToArray(arr_list1_greater_version, s1->obj))
-                    ERR_EXIT("cJSON_AddItemToArray");
-    }
+    if (fill_pack_greater(&td[0].uthash_data) < 0)
+        ERR_EXIT("fill_pack_greater");
 
-    // создание json объекта для печати
-    // я переиспользую ранее пропасенные элементы для оптимизации
-    if (!(json_out = cJSON_CreateObject()))
-        ERR_EXIT("cJSON_CreateObject()");
+    if (print_json(&td[0].uthash_data, &td[1].uthash_data) < 0)
+        ERR_EXIT("print_json");
 
-    if (!cJSON_AddItemToObject(json_out, "only1", td[0].uthash_data.array))
-        ERR_EXIT("cJSON_AddItemToObject");
-    td[0].uthash_data.array = NULL;
-
-    if (!cJSON_AddItemToObject(json_out, "only2", td[1].uthash_data.array))
-        ERR_EXIT("cJSON_AddItemToObject");
-    td[1].uthash_data.array = NULL;
-
-    if (!cJSON_AddItemToObject(json_out, "version1great", arr_list1_greater_version))
-        ERR_EXIT("cJSON_AddItemToObject");
-    arr_list1_greater_version = NULL;
-
-    if (!(json_out_str = cJSON_Print(json_out)))
-        ERR_EXIT("cJSON_Print");
-
-    printf("%s\n", json_out_str);
     printf("run: diff_branch_pack(%s,%s)\n", branch1, branch2);
 
 end:
-    for (size_t i = 0; i < NUM_THREADS; i++)
-    {
-        uthash_destroy(&td[i].uthash_data);
-        json_data_destroe(&td[i].json_data);
-    }
-    OS_JSON_FREE(json_out);
-    OS_FREE(json_out_str);
+    thread_data_destroy(td);
 
     return ret;
 }
