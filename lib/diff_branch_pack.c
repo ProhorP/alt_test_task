@@ -1,31 +1,7 @@
 #include "common.h"
 #include "diff_branch_pack.h"
 
-#include <stdio.h>
-#include <curl/curl.h>
 #include <pthread.h>
-
-const char str1[] = "{\n"
-                    "\"request_args\": {\"arch\": null}, \"length\": 187619, \"packages\":\n"
-                    "[\n"
-                    "{\"name\": \"a1\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"aarch64\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
-                    ",\n"
-                    "{\"name\": \"a1\", \"epoch\": 1, \"version\": \"0.0.2\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"i586\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
-                    ",\n"
-                    "{\"name\": \"a2\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"i586\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
-                    "]\n"
-                    "}";
-
-const char str2[] = "{\n"
-                    "\"request_args\": {\"arch\": null}, \"length\": 187619, \"packages\":\n"
-                    "[\n"
-                    "{\"name\": \"a1\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"aarch64\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
-                    ",\n"
-                    "{\"name\": \"a1\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"i586\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
-                    ",\n"
-                    "{\"name\": \"a3\", \"epoch\": 1, \"version\": \"0.0.1\", \"release\": \"alt0_1_alpha.p10\", \"arch\": \"i586\", \"disttag\": \"p10+307479.400.5.1\", \"buildtime\": 1665497454, \"source\": \"0ad\"}\n"
-                    "]\n"
-                    "}";
 
 pthread_barrier_t barrier; // Барьер
 
@@ -285,16 +261,8 @@ static void *thread_func(void *arg)
 
     struct thread_data_t *td = arg;
 
-    if (get_json_list(&td->json_data, "https://example.com") < 0)
+    if (get_json_list(&td->json_data, td->url) < 0)
         ERR_EXIT("get_json_list");
-
-    // заглушка для проверки кода
-    OS_FREE(td->json_data.json_str);
-
-    if (td->index == 0)
-        td->json_data.json_str = strdup(str1);
-    else
-        td->json_data.json_str = strdup(str2);
 
     // парсим его
     td->json_data.json = cJSON_Parse(td->json_data.json_str);
@@ -349,7 +317,26 @@ end:
     return ret;
 }
 
-int thread_data_init(struct thread_data_t td[NUM_THREADS])
+static int url_init(char **desc, const char *branch)
+{
+    int ret = 0;
+
+    const char url[] = "https://rdb.altlinux.org/api/export/branch_binary_packages/";
+    if (branch == NULL)
+        branch = "";
+
+    size_t len = strlen(url) + strlen(branch) + 1;
+    *desc = malloc(len);
+    if (!*desc)
+        ERR_EXIT("malloc");
+    strcpy(*desc, url);
+    strcat(*desc, branch);
+
+end:
+    return ret;
+}
+
+int thread_data_init(struct thread_data_t td[NUM_THREADS], const char *branch1, const char *branch2)
 {
     int ret = 0;
 
@@ -359,6 +346,12 @@ int thread_data_init(struct thread_data_t td[NUM_THREADS])
     td[1].uthash_data.other = &td[0].uthash_data;
     td[0].index = 0;
     td[1].index = 1;
+
+    if (url_init(&td[0].url, branch1) < 0)
+        ERR_EXIT("url_init");
+
+    if (url_init(&td[1].url, branch2) < 0)
+        ERR_EXIT("url_init");
 
     // подготовим массивы json для заполнения в потоках
     for (size_t i = 0; i < NUM_THREADS; i++)
@@ -377,6 +370,7 @@ void thread_data_destroy(struct thread_data_t td[NUM_THREADS])
 {
     for (size_t i = 0; i < NUM_THREADS; i++)
     {
+        OS_FREE(td[i].url);
         uthash_destroy(&td[i].uthash_data);
         json_data_destroe(&td[i].json_data);
     }
@@ -387,7 +381,7 @@ int diff_branch_pack(const char *branch1, const char *branch2)
     int ret = 0;
     struct thread_data_t td[NUM_THREADS];
 
-    if (thread_data_init(td) < 0)
+    if (thread_data_init(td, branch1, branch2) < 0)
         ERR_EXIT("thread_data_init");
 
     if (pthread_barrier_init(&barrier, NULL, NUM_THREADS))
@@ -411,8 +405,6 @@ int diff_branch_pack(const char *branch1, const char *branch2)
 
     if (print_json(&td[0].uthash_data, &td[1].uthash_data) < 0)
         ERR_EXIT("print_json");
-
-    printf("run: diff_branch_pack(%s,%s)\n", branch1, branch2);
 
 end:
     thread_data_destroy(td);

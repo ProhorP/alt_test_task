@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <curl/curl.h>
 #include "cJSON.h"
 #include "uthash.h"
 //Коды ошибок всегда трактуются одинаково:
@@ -84,15 +86,18 @@ struct thread_data_t
     struct json_data_t json_data;
     pthread_t tid;
     int index;
+	char* url;
 };
 
 /**
  * @brief Инициализация ресурсов для потоков
  * 
  * @param td указатель на массив из NUM_THREADS элементов
+ * @param branch1 имя первой ветки
+ * @param branch2 имя второй ветки
  * @return Код ошибки.
  */
-int thread_data_init(struct thread_data_t td[NUM_THREADS]);
+int thread_data_init(struct thread_data_t td[NUM_THREADS], const char* branch1, const char* branch2);
 
 /**
  * @brief Освобождение ресурсов, выделенных для потоков
