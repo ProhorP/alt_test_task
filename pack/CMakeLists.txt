@@ -38,7 +38,7 @@ set(CPACK_RPM_PACKAGE_RELOCATABLE ON)
 # Разрешение установки компонентов пакета
 set(CPACK_RPM_COMPONENT_INSTALL ON)
 # Зависимости для компонента (RPM)
-set(CPACK_RPM_alt_PACKAGE_REQUIRES "ssl, crypto")
+# set(CPACK_RPM_alt_PACKAGE_REQUIRES "systemd")
 
 # Указание доступных компонентов для установки
 set(CPACK_COMPONENTS_ALL "alt")
