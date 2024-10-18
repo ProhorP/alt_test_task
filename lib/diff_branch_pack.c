@@ -1,11 +1,8 @@
 #include "common.h"
 #include "diff_branch_pack.h"
 
-#include <stdbool.h>
 #include <stdio.h>
 #include <curl/curl.h>
-#include "cJSON.h"
-#include "uthash.h"
 #include <pthread.h>
 
 const char str1[] = "{\n"
@@ -30,42 +27,7 @@ const char str2[] = "{\n"
                     "]\n"
                     "}";
 
-#define NUM_THREADS 2      // Количество потоков
 pthread_barrier_t barrier; // Барьер
-
-struct uthash_entry_t
-{
-    int version[4];
-    const char *release;
-    cJSON *obj;
-    UT_hash_handle hh; /* makes this structure hashable */
-    char name[];       /* key (name+arch) */
-};
-
-struct uthash_data_t
-{
-    struct uthash_entry_t *users;
-    char *buf;
-    size_t buf_size;
-    struct uthash_data_t *other;
-    cJSON *array;
-    cJSON *arr_greater_version;
-};
-
-struct json_data_t
-{
-    char *json_str;
-    cJSON *json;
-    size_t size_str;
-};
-
-struct thread_data_t
-{
-    struct uthash_data_t uthash_data;
-    struct json_data_t json_data;
-    pthread_t tid;
-    int index;
-};
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
